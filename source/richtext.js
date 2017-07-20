@@ -1168,7 +1168,7 @@ RichText.Editor = class {
     }
 
     /**
-     * Processes a mouseDown event.
+     * Processes a mouseUp event.
      * @param {object} pos
      */
 

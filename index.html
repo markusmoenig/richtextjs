@@ -208,9 +208,10 @@
                 }
 
                 document.onmousedown = ( event ) => {
-                    if ( richText.hasFocus() ) {
-                        richText.mouseDown( getMousePos( canvas, event ) );
-                        // event.preventDefault();
+                    let mousePos = getMousePos( canvas, event );
+                    if ( mousePos.x >= 0 && mousePos.y >= 0 && mousePos.x <= richText.width &&
+                         mousePos.y <= richText.height ) {
+                        richText.mouseDown( mousePos );
                         update();
                     }
                 };
@@ -353,7 +354,8 @@
                     font.text = String( size ) + "pt " + font.name;
                     font.attributes = attributes;
                     font.formatting = formatting;
-                    attributes.forEach( ( attrib ) => font.text = attrib + " " + font.text );
+                    if ( font.attributes.bold ) font.text = "bold " + font.text;
+                    if ( font.attributes.italic ) font.text = "italic " + font.text;
                     return font;
                 };
 
@@ -369,7 +371,7 @@
                 richText.textInput( "Why ???\n" );
                 richText.setFont( createFont( 12 ) );
                 richText.textInput( "\nI could not have imagined developing a rich text editor some time ago ... but I do need a full featured rich text editor for my " );
-                richText.setFont( createFont( 12, ["italic"] ) );
+                richText.setFont( createFont( 12, { italic : true } ) );
                 richText.textInput( "VisualGraphics.tv" );
                 richText.setFont( createFont( 12 ) );
                 richText.textInput( " application framework and nothing I found fits the bill.\n\n" );
