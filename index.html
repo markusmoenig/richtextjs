@@ -235,6 +235,7 @@
                     let canvas = document.getElementById( 'editorCanvas' );
                     canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
                     richText.layout( canvas.width, canvas.height );
+                    update();
                 } );
 
                 // --- Html Preview
@@ -295,11 +296,15 @@
                         font.text = "italic " + font.text;
                     }
 
-                    if ( listElement.value !== -1 ) {
+                    if ( listElement.selectedIndex ) {
                         font.formatting = {};
                         font.formatting.margin = [80, 10, 20, 0];
-                        font.formatting.tag  = "ul";
+                        if ( listElement.selectedIndex === 1 )
+                            font.formatting.tag = "ul";
+                        else font.formatting.tag = "ol";
                     }
+
+                    if ( font.name === -1 || font.size === -1 ) return;
 
                     richText.setFont( font );
                     update();
