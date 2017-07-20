@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Rich Text JS</title>
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+        <style>
+            body, html {
+                width: 100%;
+                height: 100%;
+                border: 0px;
+                padding: 0px;
+                margin: 0px;
+                background-color: #cdcdcd;
+                font-family: 'Open Sans', serif;
+            }
+
+            #toolbar {
+                position: absolute;
+                left: 10px;
+                top: 10px;
+                right: 10px;
+                overflow: hidden;
+            }
+
+            #editorFrame {
+                position: absolute;
+                top: 40px;
+                width: 50%;
+                left: 0;
+                bottom: 40px;
+            }
+
+            #editorFrame div {
+                position: absolute;
+                left: 10px;
+                top: 0;
+                right: 10px;
+                bottom: 0;
+                overflow: hidden;
+            }
+
+            #editorCanvas {
+                outline: none;
+                border: 1px solid black;
+                width: 99%;
+                height: 99%;
+            }
+
+            #rightArea {
+                position: absolute;
+                top: 40px;
+                width: 50%;
+                right: 0;
+                bottom: 40px;
+            }
+
+            #rightArea div {
+                position: absolute;
+                left: 10px;
+                top: 0;
+                right: 10px;
+                bottom: 0;
+                overflow: hidden;
+            }
+
+            #rightArea textarea {
+                width: 99%;
+                height: 99%;
+                border: none;
+                background: rgb(30, 30, 30);
+                color: rgb(0, 200, 20);
+            }
+
+        </style>
+    </head>
+
+    <body onload="main()">
+
+        <div id="toolbar">
+            <select id="font">
+                <option value="open sans">Open Sans</option>
+                <option value="serif">Times</option>
+                <option value="sans-serif">Helvetica</option>
+                <option value="monospace">Courier</option>
+                <option value="cursive">Cursive</option>
+                <option value="fantasy">Fantasy</option>
+            </select>
+            <select id="size">
+                <option>8</option>
+                <option>9</option>
+                <option>10</option>
+                <option>11</option>
+                <option>12</option>
+                <option value = "14" selected="selected">14</option>
+                <option>16</option>
+                <option>18</option>
+                <option>20</option>
+                <option>24</option>
+                <option>30</option>
+                <option>36</option>
+                <option>72</option>
+            </select>
+            <label><strong>Bold</strong></label>
+            <label><input type="checkbox" id="bold"></label>
+            <label><i>Italic</i></label>
+            <label><input type="checkbox" id="italic"></label>
+            <label>List</label>
+            <select id="list">
+                <option value="no-list">None</option>
+                <option value="unordered-list">Unordered</option>
+                <option value="ordered-list">Ordered</option>
+            </select>
+        </div>
+        <div id="editorFrame">
+            <div>
+                <canvas id="editorCanvas" tabindex= "1"></canvas>
+            </div>
+        </div>
+
+        <div id="rightArea">
+            <div>
+                <textarea></textarea>
+            </div>
+        </div>
+
+        <script src="source/richtext.js"></script>
+        <script>
+
+            function main() {
+                // ---
+                let defaultFont = {
+                    name : "open sans",
+                    size : 24,
+                    attributes : { bold : false, italic : false },
+                    text : "24pt open sans"
+                };
+
+                let tagList = [
+                    { name : "h1", size : 30 },
+                    { name : "h2", size : 20 },
+                    { name : "h3", size : 18 },
+                    { name : "h4", size : 16 },
+                    { name : "p", size : 14 },
+                ];
+
+                let canvas = document.getElementById( 'editorCanvas' );
+                let richText = new RichText.Editor( { canvas : canvas, defaultFont : defaultFont, tagList : tagList } );
+
+                richText.needsRedraw( () => richText.draw() );
+                let update = () => richText.draw();
+
+                canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
+                richText.layout( canvas.clientWidth, canvas.clientHeight );
+                update();
+
+                // --- Focus notification
+
+                let canvasElement = document.querySelector( '#editorCanvas' );
+                canvasElement.onfocus = () => richText.setFocus( true );
+                canvasElement.onblur = () => richText.setFocus( false );
+
+                // --- Handle text input
+
+                document.onkeypress = ( event ) => {
+                    if ( richText.hasFocus() ) {
+                        let code = window.event ? window.event.keyCode : event.which;
+
+                        // --- No Backspace, enter or tab
+                        if ( code !== 8 && code !== 13 && code != 9 )
+                        {
+                            let text = String.fromCharCode( code );
+                            richText.textInput( text );
+                            update();
+                        }
+                        event.preventDefault();
+                    }
+                };
+
+                // --- Handle key down
+
+                document.onkeydown = ( event ) => {
+                    if ( richText.hasFocus() ) {
+                        let keyCode = event.keyCode;
+
+                        let keyText = "";
+                        if ( keyCode === 13 ) keyText = "Enter";
+                        else if ( keyCode === 8 ) keyText = "Backspace";
+
+                        if ( keyText ) {
+                            richText.keyDown( keyText );
+                            event.preventDefault();
+                            update();
+                        }
+                    }
+                };
+
+                // --- Handle mouse events
+
+                let getMousePos = ( canvas, event ) => {
+                    let rect = canvas.getBoundingClientRect();
+                    return {
+                        x: event.clientX - rect.left,
+                        y: event.clientY - rect.top,
+                    };
+                }
+
+                document.onmousedown = ( event ) => {
+                    if ( richText.hasFocus() ) {
+                        richText.mouseDown( getMousePos( canvas, event ) );
+                        // event.preventDefault();
+                        update();
+                    }
+                };
+
+                document.onmousemove = ( event ) => {
+                    if ( richText.hasFocus() ) {
+                        richText.mouseMove( getMousePos( canvas, event ) );
+                        event.preventDefault();
+                        update();
+                    }
+                };
+
+                document.onmouseup = ( event ) => {
+                    if ( richText.hasFocus() ) {
+                        richText.mouseUp( getMousePos( canvas, event ) );
+                        event.preventDefault();
+                        update();
+                    }
+                };
+
+                window.addEventListener( 'resize', () => {
+                    let canvas = document.getElementById( 'editorCanvas' );
+                    canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
+                    richText.layout( canvas.width, canvas.height );
+                } );
+
+                // --- Html Preview
+
+                let textArea = document.querySelector( 'textarea' );
+                richText.contentChanged( () => textArea.value = richText.export( "html" ) );
+
+                // --- Toolbar handling code
+
+                let fontElement = document.querySelector( '#font' );
+                fontElement.onchange = function() {
+                    let value = fontElement.options[fontElement.selectedIndex].value;
+                    canvasElement.focus( true );
+                    createFontFromUI();
+                };
+
+                let sizeElement = document.querySelector( '#size' );
+                sizeElement.onchange = function() {
+                    canvasElement.focus( true );
+                    createFontFromUI();
+                };
+
+                let boldElement = document.querySelector( '#bold' );
+                boldElement.onchange = function() {
+                    canvasElement.focus( true );
+                    createFontFromUI();
+                };
+
+                let italicElement = document.querySelector( '#italic' );
+                italicElement.onchange = function() {
+                    canvasElement.focus( true );
+                    createFontFromUI();
+                };
+
+                let listElement = document.querySelector( '#list' );
+                listElement.onchange = function() {
+                    canvasElement.focus( true );
+                    createFontFromUI();
+                };
+
+                let createFontFromUI = () => {
+                    let font = {
+                        name : fontElement.options[fontElement.selectedIndex].value,
+                        size : sizeElement.options[sizeElement.selectedIndex].value,
+                        attributes : { bold : false, italic : false },
+                        text : sizeElement.options[sizeElement.selectedIndex].value + "pt " + fontElement.options[fontElement.selectedIndex].value,
+                    };
+
+                    let bold = boldElement.checked;
+
+                    if ( boldElement.checked ) {
+                        font.attributes.bold = true;
+                        font.text = "bold " + font.text;
+                    }
+
+                    if ( italicElement.checked ) {
+                        font.attributes.italic = true;
+                        font.text = "italic " + font.text;
+                    }
+
+                    if ( listElement.value !== -1 ) {
+                        font.formatting = {};
+                        font.formatting.margin = [80, 10, 20, 0];
+                        font.formatting.tag  = "ul";
+                    }
+
+                    richText.setFont( font );
+                    update();
+                };
+
+                // --- Font notification
+
+                richText.fontChanged( ( font ) => {
+
+                    if ( font.name !== -1 ) {
+                        fontElement.value = font.name;
+                    } else fontElement.value = undefined;
+
+                    if ( font.size !== -1 ) {
+                        sizeElement.value = font.size;
+                    } else sizeElement.value = undefined;
+
+                    if ( font.attributes.bold !== -1 ) {
+                        boldElement.indeterminate = false;
+                        boldElement.checked = Boolean(font.attributes.bold);
+                    } else {
+                        boldElement.indeterminate = true;
+                        boldElement.checked = false;
+                    }
+
+                    if ( font.attributes.italic !== -1 ) {
+                        italicElement.indeterminate = false;
+                        italicElement.checked = Boolean(font.attributes.italic);
+                    } else {
+                        italicElement.indeterminate = true;
+                        italicElement.checked = false;
+                    }
+
+                } );
+
+                // --- Insert Text - No HTML import yet so we have todo it by hand, we could load() JSON but that would uglify the source.
+
+                let createFont = ( size, attributes = [], formatting ) => {
+                    let font = Object.assign( {}, defaultFont );
+                    font.size = size;
+                    font.text = String( size ) + "pt " + font.name;
+                    font.attributes = attributes;
+                    font.formatting = formatting;
+                    attributes.forEach( ( attrib ) => font.text = attrib + " " + font.text );
+                    return font;
+                };
+
+                richText.setFont( createFont( 20 ) );
+                richText.textInput( "Welcome to RichTextJS\n" );
+
+                richText.setFont( createFont( 12 ) );
+                richText.textInput( "\nA standalone rich text editor with no external dependencies and entirely based on the HTML5 2D canvas. " );
+                richText.textInput( "It is not integrated into DOM by design.\n\n" );
+                richText.textInput( "RichTextJS is currently under development.\n\n" );
+
+                richText.setFont( createFont( 20 ) );
+                richText.textInput( "Why ???\n" );
+                richText.setFont( createFont( 12 ) );
+                richText.textInput( "\nI could not have imagined developing a rich text editor some time ago ... but I do need a full featured rich text editor for my " );
+                richText.setFont( createFont( 12, ["italic"] ) );
+                richText.textInput( "VisualGraphics.tv" );
+                richText.setFont( createFont( 12 ) );
+                richText.textInput( " application framework and nothing I found fits the bill.\n\n" );
+
+                richText.textInput( "RichTextJS is inspired by (but does not share any code with) Carota.\n\n" );
+
+                richText.setFont( createFont( 20 ) );
+                richText.textInput( "Missing Features\n" );
+                richText.setFont( createFont( 12 ) );
+                richText.textInput( "\n We are at the start of the development cycle, so there are quite a few things missing:\n" );
+
+                richText.setFont( createFont( 12, [], { tag : "ul", margin : [80, 10, 20, 10] } ) );
+                richText.textInput( "Undo / Redo and Clipboard support\n" );
+                richText.textInput( "HTML import, Markdown export\n");
+                richText.textInput( "Arrow Keys\n" );
+                richText.textInput( "Links (Internal and external\n" );
+                richText.textInput( "Multiple columns\n" );
+                richText.textInput( "Bugfixes and more" );
+
+                richText.setFont( createFont( 12 ) );
+                richText.textInput( "The GitHub repo is at https://github.com/markusmoenig/richtextjs\n\n" );
+
+                richText.textInput( "Markus Moenig, July 2017" );
+
+                update();
+            }
+        </script>
+    </body>
+</html>
