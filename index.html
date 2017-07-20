@@ -338,6 +338,11 @@
                         italicElement.checked = false;
                     }
 
+                    if ( font.formatting ) {
+                        if ( font.formatting.tag === "ul" ) listElement.selectedIndex = 1;
+                        else if ( font.formatting.tag === "ol" ) listElement.selectedIndex = 2;
+                    } else listElement.selectedIndex = 0;
+
                 } );
 
                 // --- Insert Text - No HTML import yet so we have todo it by hand, we could load() JSON but that would uglify the source.
