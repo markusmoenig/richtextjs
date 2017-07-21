@@ -416,6 +416,7 @@ RichText.ElementManager = class {
                 set( font, elFont, "name" );
                 set( font, elFont, "text" );
                 set( font, elFont, "size" );
+                set( font, elFont, "style" );
                 setAttribute( font, elFont, "bold" );
                 setAttribute( font, elFont, "italic" );
             }
@@ -539,6 +540,7 @@ RichText.Editor = class {
         this._redraw = () => {};
         this._fontChanged = () => {};
         this._contentChanged = () => {};
+        this._gotoUrl = () => {};
 
         this.focus = true;
 
@@ -587,6 +589,15 @@ RichText.Editor = class {
 
     contentChanged( func ) {
         this._contentChanged = func;
+    }
+
+    /**
+     * Sets the callback for the link clicked event.
+     * @param {function} func - Called when a link is clicked in the editor.
+     */
+
+    gotoUrl( func ) {
+        this._gotoUrl = func;
     }
 
     /**
@@ -1107,6 +1118,10 @@ RichText.Editor = class {
     mouseDown( pos )
     {
         if ( pos.x < 0 || pos.y < 0 ) return;
+
+        if ( this.hoverElement && this.hoverElement.font.link )
+            this._gotoUrl( this.hoverElement.font.link.url );
+
         let rc = this.getLocationForMousePos( pos );
 
         if ( rc ) {
@@ -1132,12 +1147,23 @@ RichText.Editor = class {
 
     mouseMove( pos )
     {
-        if ( !this.mouseIsDown ) return;
-
         pos.x = Math.max( pos.x, 0 );
         pos.y = Math.max( pos.y, 0 );
 
         let rc = this.getLocationForMousePos( pos );
+
+        if ( rc && !this.mouseIsDown ) {
+            if ( this.hoverElement !== rc.element ) {
+                this.hoverElement = rc.element;
+                this._redraw();
+
+                if ( this.hoverElement ) {
+                    if ( this.hoverElement.font.link ) this.canvas.style.cursor = "pointer";
+                    else this.canvas.style.cursor = "default";
+                }
+            }
+            return;
+        }
 
         if ( rc ) {
             this.selection = true;
@@ -1300,7 +1326,7 @@ RichText.Editor = class {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect( startX, startY, this.width, this.height );
 
-        ctx.fillStyle = '#000000';
+        ctx.fillStyle = 'black';
         ctx.textBaseline = 'alphabetic';
 
         let formatTag;
@@ -1412,7 +1438,21 @@ RichText.Editor = class {
 
                 // --- Draw the text
 
-                ctx.fillStyle = 'black';
+                if ( lWord.element.font.style ) ctx.fillStyle = lWord.element.font.style;
+                else ctx.fillStyle = 'black';
+
+                if ( lWord.element.font.link && lWord.element === this.hoverElement )
+                {
+                    if ( lWord.element.font.link.hoverStyle )
+                        ctx.fillStyle = lWord.element.font.link.hoverStyle;
+
+                    if ( lWord.element.font.link.hoverAttributes ) {
+                        let attributes = lWord.element.font.link.hoverAttributes;
+                        if ( attributes.includes( "underline") )
+                            ctx.fillRect( screenX, screenY + line.maxAscent + 1, textToDrawWidth, 1 );
+                    }
+                }
+
                 ctx.fillText( textToDraw, screenX, screenY + line.maxAscent );
                 x += textToDrawWidth; screenX += textToDrawWidth;
             }

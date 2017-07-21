@@ -1,5 +1,5 @@
 # Welcome to RichTextJS
-A standalone rich text editor with no external dependencies and based entirely on the HTML5 canvas.
+A standalone rich text editor with no external dependencies and based entirely on the HTML5 canvas. You can test the current status at [richtextjs.com](http://richtextjs.com).
 
 # Why ?
 I could not have imagined developing a rich text editor some time ago ... but I do need a full featured rich text editor for my VisualGraphics.tv application framework. And nothing I found fits the bill.
@@ -12,7 +12,6 @@ We are at the start of the development cycle, so there are quite a few missing f
 * Undo / redo and clipboard support
 * HTML import, Markdown export
 * Arrows keys
-* Links (internal and external)
 * Multiple columns
 * Bugfixes and more
 

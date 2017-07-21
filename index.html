@@ -4,7 +4,7 @@
         <meta charset="utf-8" />
         <meta name="description" content="Standalone javascript rich text editor entirely based on HTML5 canvas">
         <meta name="keywords" content="Rich Text Editor, JavaScript, Canvas, HTML5">
-        <title>Rich Text JS</title>
+        <title>RichTextJS</title>
         <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
         <style>
             body, html {
@@ -107,12 +107,21 @@
             <label><input type="checkbox" id="bold"></label>
             <label><i>Italic</i></label>
             <label><input type="checkbox" id="italic"></label>
+            <label>Color</label>
+            <select id="color">
+                <option value="black">Black</option>
+                <option value="red">Red</option>
+                <option value="green">Green</option>
+                <option value="blue">Blue</option>
+            </select>
             <label>List</label>
             <select id="list">
                 <option value="no-list">None</option>
                 <option value="unordered-list">Unordered</option>
                 <option value="ordered-list">Ordered</option>
             </select>
+            <label>Links are active</label>
+            <label><input type="checkbox" id="links" checked = true></label>
         </div>
         <div id="editorFrame">
             <div>
@@ -135,6 +144,7 @@
                     name : "open sans",
                     size : 24,
                     attributes : { bold : false, italic : false },
+                    style : 'black',
                     text : "24pt open sans"
                 };
 
@@ -151,6 +161,11 @@
 
                 richText.needsRedraw( () => richText.draw() );
                 let update = () => richText.draw();
+
+                richText.gotoUrl( ( url ) => {
+                    let element = document.querySelector( '#links' );
+                    if ( element.checked ) window.open( url )
+                } );
 
                 canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
                 richText.layout( canvas.clientWidth, canvas.clientHeight );
@@ -277,6 +292,12 @@
                     createFontFromUI();
                 };
 
+                let colorElement = document.querySelector( '#color' );
+                colorElement.onchange = function() {
+                    canvasElement.focus( true );
+                    createFontFromUI();
+                };
+
                 let createFontFromUI = () => {
                     let font = {
                         name : fontElement.options[fontElement.selectedIndex].value,
@@ -304,6 +325,9 @@
                             font.formatting.tag = "ul";
                         else font.formatting.tag = "ol";
                     }
+
+                    let colors = ["black", "red", "green", "blue"];
+                    font.style = colors[colorElement.selectedIndex];
 
                     if ( font.name === -1 || font.size === -1 ) return;
 
@@ -344,16 +368,23 @@
                         else if ( font.formatting.tag === "ol" ) listElement.selectedIndex = 2;
                     } else listElement.selectedIndex = 0;
 
+                    if ( font.style !== -1 ) {
+                        let colors = ["black", "red", "green", "blue"];
+                        colorElement.selectedIndex = colors.indexOf( font.style );
+                    }
+
                 } );
 
                 // --- Insert Text - No HTML import yet so we have todo it by hand, we could load() JSON but that would uglify the source.
 
-                let createFont = ( size, attributes = [], formatting ) => {
+                let createFont = ( size, attributes = [], formatting, style, link ) => {
                     let font = Object.assign( {}, defaultFont );
                     font.size = size;
                     font.text = String( size ) + "pt " + font.name;
                     font.attributes = attributes;
                     font.formatting = formatting;
+                    font.link = link;
+                    font.style = style ? style : 'black';
                     if ( font.attributes.bold ) font.text = "bold " + font.text;
                     if ( font.attributes.italic ) font.text = "italic " + font.text;
                     return font;
@@ -364,17 +395,19 @@
 
                 richText.setFont( createFont( 12 ) );
                 richText.textInput( "\nA standalone rich text editor with no external dependencies and entirely based on the HTML5 2D canvas. " );
+                richText.setFont( createFont( 12, [], undefined, 'red' ) );
                 richText.textInput( "It is not integrated into DOM by design.\n\n" );
+                richText.setFont( createFont( 12 ) );
                 richText.textInput( "RichTextJS is currently under development.\n\n" );
 
                 richText.setFont( createFont( 20 ) );
                 richText.textInput( "Why ???\n" );
                 richText.setFont( createFont( 12 ) );
                 richText.textInput( "\nI could not have imagined developing a rich text editor some time ago ... but I do need a full featured rich text editor for my " );
-                richText.setFont( createFont( 12, { italic : true } ) );
+                richText.setFont( createFont( 12, [], undefined, "blue", { hoverAttributes : ["underline"], url : "https://www.visualgraphics.tv" } ) );
                 richText.textInput( "VisualGraphics.tv" );
                 richText.setFont( createFont( 12 ) );
-                richText.textInput( " application framework and nothing I found fits the bill.\n\n" );
+                richText.textInput( " application framework and nothing I found did fit the bill.\n\n" );
 
                 richText.textInput( "RichTextJS is inspired by (but does not share any code with) Carota.\n\n" );
 
@@ -387,14 +420,16 @@
                 richText.textInput( "Undo / Redo and Clipboard support\n" );
                 richText.textInput( "HTML import, Markdown export\n");
                 richText.textInput( "Arrow Keys\n" );
-                richText.textInput( "Links (Internal and external\n" );
                 richText.textInput( "Multiple columns\n" );
                 richText.textInput( "Bugfixes and more" );
 
                 richText.setFont( createFont( 12 ) );
-                richText.textInput( "The GitHub repo is at https://github.com/markusmoenig/richtextjs\n\n" );
+                richText.textInput( "The GitHub repo is at " );
+                richText.setFont( createFont( 12, [], undefined, "blue", { hoverAttributes : ["underline"], url : "https://github.com/markusmoenig/richtextjs" } ) );
+                richText.textInput( "https://github.com/markusmoenig/richtextjs" );
 
-                richText.textInput( "Markus Moenig, July 2017" );
+                richText.setFont( createFont( 12 ) );
+                richText.textInput( "\n\nMarkus Moenig, July 2017" );
 
                 update();
             }
