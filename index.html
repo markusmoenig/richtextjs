@@ -159,7 +159,6 @@
                 let canvas = document.getElementById( 'editorCanvas' );
                 let richText = new RichText.Editor( { canvas : canvas, defaultFont : defaultFont, tagList : tagList } );
 
-                richText.needsRedraw( () => richText.draw() );
                 let update = () => richText.draw();
 
                 richText.gotoUrl( ( url ) => {
@@ -169,7 +168,6 @@
 
                 canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
                 richText.layout( canvas.clientWidth, canvas.clientHeight );
-                update();
 
                 // --- Focus notification
 
@@ -178,7 +176,6 @@
                 canvasElement.onblur = () => richText.setFocus( false );
 
                 // --- Handle text input
-
                 document.onkeypress = ( event ) => {
                     if ( richText.hasFocus() ) {
                         let code = window.event ? window.event.keyCode : event.which;
@@ -188,14 +185,13 @@
                         {
                             let text = String.fromCharCode( code );
                             richText.textInput( text );
-                            update();
+                            update(); // Have to call manually after textInput()
                         }
                         event.preventDefault();
                     }
                 };
 
                 // --- Handle key down
-
                 document.onkeydown = ( event ) => {
                     if ( richText.hasFocus() ) {
                         let keyCode = event.keyCode;
@@ -203,17 +199,19 @@
                         let keyText = "";
                         if ( keyCode === 13 ) keyText = "Enter";
                         else if ( keyCode === 8 ) keyText = "Backspace";
+                        else if ( keyCode === 37 ) keyText = "ArrowLeft";
+                        else if ( keyCode === 38 ) keyText = "ArrowUp";
+                        else if ( keyCode === 39 ) keyText = "ArrowRight";
+                        else if ( keyCode === 40 ) keyText = "ArrowDown";
 
                         if ( keyText ) {
                             richText.keyDown( keyText );
                             event.preventDefault();
-                            update();
                         }
                     }
                 };
 
                 // --- Handle mouse events
-
                 let getMousePos = ( canvas, event ) => {
                     let rect = canvas.getBoundingClientRect();
                     return {
@@ -227,7 +225,6 @@
                     if ( mousePos.x >= 0 && mousePos.y >= 0 && mousePos.x <= richText.width &&
                          mousePos.y <= richText.height ) {
                         richText.mouseDown( mousePos );
-                        update();
                     }
                 };
 
@@ -235,7 +232,6 @@
                     if ( richText.hasFocus() ) {
                         richText.mouseMove( getMousePos( canvas, event ) );
                         event.preventDefault();
-                        update();
                     }
                 };
 
@@ -243,16 +239,38 @@
                     if ( richText.hasFocus() ) {
                         richText.mouseUp( getMousePos( canvas, event ) );
                         event.preventDefault();
-                        update();
                     }
                 };
 
+                // --- Resize
                 window.addEventListener( 'resize', () => {
                     let canvas = document.getElementById( 'editorCanvas' );
                     canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
                     richText.layout( canvas.width, canvas.height );
-                    update();
                 } );
+
+                // --- Clipboard Support
+                window.addEventListener('cut', function ( event ) {
+                    if ( event.clipboardData ) {
+                        let out = richText.export( "text", true );
+                        console.log( out );
+                        if ( out ) {
+                            richText.deleteSelection();
+                            event.clipboardData.setData('text/plain', out );
+                        }
+                    }
+                    event.preventDefault();
+                });
+
+                window.addEventListener('copy', function ( event ) {
+                    if ( event.clipboardData ) {
+                        let out = richText.export( "text", true );
+                        if ( out ) {
+                            event.clipboardData.setData('text/plain', out );
+                        }
+                    }
+                    event.preventDefault();
+                });
 
                 // --- Html Preview
 
@@ -260,7 +278,6 @@
                 richText.contentChanged( () => textArea.value = richText.export( "html" ) );
 
                 // --- Toolbar handling code
-
                 let fontElement = document.querySelector( '#font' );
                 fontElement.onchange = function() {
                     let value = fontElement.options[fontElement.selectedIndex].value;
@@ -417,9 +434,8 @@
                 richText.textInput( "\n We are at the start of the development cycle, so there are quite a few things missing:\n" );
 
                 richText.setFont( createFont( 12, [], { tag : "ul", margin : [80, 10, 20, 10] } ) );
-                richText.textInput( "Undo / Redo and Clipboard support\n" );
+                richText.textInput( "Undo / Redo\n" );
                 richText.textInput( "HTML import, Markdown export\n");
-                richText.textInput( "Arrow Keys\n" );
                 richText.textInput( "Multiple columns\n" );
                 richText.textInput( "Bugfixes and more" );
 

@@ -111,7 +111,7 @@ RichText.ElementManager = class {
     }
 
     /**
-     * Returns the element before the given element.
+     * @returns the element before the given element.
      */
 
     getPreviousElement( el )
@@ -120,6 +120,18 @@ RichText.ElementManager = class {
         if ( index )
             return this.elements[index-1];
     }
+
+    /**
+     * @returns the element after the given element.
+     */
+
+    getNextElement( el )
+    {
+        let index = this.elements.indexOf( el );
+        if ( index < this.elements.length )
+            return this.elements[index+1];
+    }
+
 
     /**
      * Removes the given element.
@@ -385,6 +397,61 @@ RichText.ElementManager = class {
     }
 
     /**
+     * Returns the elements inside the given range. The text of the elements is truncated to reflect the range.
+     * @param {*} fromLoc
+     * @param {*} toLoc
+     * @returns {array} The elements inside the range.
+     */
+
+    getRange( fromLoc, toLoc )
+    {
+        let elements = [];
+
+        for( let i = 0; i < this.elements.length; ++i )
+        {
+            let el = this.elements[i];
+
+            if ( this.isElementInsideRange( el, fromLoc.element, toLoc.element ) )
+            {
+                if ( el !== fromLoc.element && el !== toLoc.element )
+                {
+                    elements.push( el );
+                }
+                else
+                if ( el === fromLoc.element && el === toLoc.element )
+                {
+                    if ( fromLoc.offset === 0 && toLoc.offset === el.text.length )
+                    {
+                        // --- The whole element is selected
+                        elements.push( el );
+                    } else {
+                        let text = el.text;
+                        let element = this.createElement( el.font );
+                        element.text = text.substr( fromLoc.offset, toLoc.offset - fromLoc.offset );
+                        elements.push( element );
+                    }
+                } else
+                if ( el === fromLoc.element )
+                {
+                    let text = el.text;
+                    let element = this.createElement( el.font );
+                    element.text = text.substr( fromLoc.offset, text.length - fromLoc.offset );
+                    elements.push( element );
+                } else
+                if ( el === toLoc.element )
+                {
+                    let text = el.text;
+                    let element = this.createElement( el.font );
+                    element.text = text.substr( 0, toLoc.offset );
+                    elements.push( element );
+                }
+            }
+        }
+
+        return elements;
+    }
+
+    /**
      *
      * @param {object} fromLoc
      * @param {object} toLoc
@@ -537,7 +604,7 @@ RichText.Editor = class {
 
         this.elements = new RichText.ElementManager( defaultFont );
 
-        this._redraw = () => {};
+        this._redraw = () => this.draw();
         this._fontChanged = () => {};
         this._contentChanged = () => {};
         this._gotoUrl = () => {};
@@ -608,6 +675,15 @@ RichText.Editor = class {
     fontChanged( func ) {
         this._fontChanged = func;
     }
+
+    /**
+     * Deletes the current selection (if any).
+     */
+
+     deleteSelection() {
+         if ( this.selection )
+             this.keyDown( "Backspace" );
+     }
 
     /**
      * Sets the given font.
@@ -1051,6 +1127,7 @@ RichText.Editor = class {
                 this.getPositionForElementOffset( this.cursorLocation.element, this.cursorLocation.offset, this.cursorLocation );
                 this.resetBlinkState();
                 this._contentChanged( this );
+                this._redraw();
                 return;
             }
         }
@@ -1106,8 +1183,49 @@ RichText.Editor = class {
             }
 
             checkPrevious();
+        } else
+        if ( key === "ArrowLeft" )
+        {
+            if ( this.cursorLocation.offset ) --this.cursorLocation.offset;
+            else {
+                // --- Try to go to previous element
+                let element = this.elements.getPreviousElement( this.cursorLocation.element );
+                if ( element ) {
+                    this.cursorLocation.element = element;
+                    this.cursorLocation.offset = element.text.length;
+                }
+            }
+
+            this.getPositionForElementOffset( this.cursorLocation.element, this.cursorLocation.offset, this.cursorLocation );
+        } else
+        if ( key === "ArrowRight" )
+        {
+            if ( this.cursorLocation.offset <= this.cursorLocation.element.text.length ) ++this.cursorLocation.offset;
+            else {
+                // --- Try to go to previous element
+                let element = this.elements.getNextElement( this.cursorLocation.element );
+                if ( element ) {
+                    this.cursorLocation.element = element;
+                    this.cursorLocation.offset = 0;
+                }
+            }
+
+            this.getPositionForElementOffset( this.cursorLocation.element, this.cursorLocation.offset, this.cursorLocation );
+        } else
+        if ( key === "ArrowUp" )
+        {
+            this.cursorLocation.y -= this.cursorLocation.line.maxHeight / 2;
+            this.cursorLocation.y = Math.max( this.cursorLocation.y, 0 );
+            this.cursorLocation = this.getLocationForMousePos( { x : this.cursorLocation.x, y : this.cursorLocation.y } );
+        } else
+        if ( key === "ArrowDown" )
+        {
+            this.cursorLocation.y += this.cursorLocation.line.maxHeight+1;
+            this.cursorLocation = this.getLocationForMousePos( { x : this.cursorLocation.x, y : this.cursorLocation.y } );
         }
+
         this.resetBlinkState();
+        this._redraw();
     }
 
     /**
@@ -1138,6 +1256,7 @@ RichText.Editor = class {
 
         this.mouseIsDown = true;
         this.selection = false;
+        this._redraw();
     }
 
     /**
@@ -1188,9 +1307,10 @@ RichText.Editor = class {
                 this.selectionStart = this.cursorLocation;
                 this.selectionEnd = rc;
             }
-        }
 
-        this._fontChanged( this.elements.createFontForRange( this.selectionStart, this.selectionEnd ) );
+            this._fontChanged( this.elements.createFontForRange( this.selectionStart, this.selectionEnd ) );
+            this._redraw();
+        }
     }
 
     /**
@@ -1215,6 +1335,7 @@ RichText.Editor = class {
         this.linalyze();
         if ( this.cursorLocation.element )
             this.getPositionForElementOffset( this.cursorLocation.element, this.cursorLocation.offset, this.cursorLocation );
+        this._redraw();
     }
 
     /**
@@ -1222,7 +1343,7 @@ RichText.Editor = class {
      * @param {*} type
      */
 
-    export( format )
+    export( format, selection )
     {
         let getTagForSize = ( size ) => {
             let tags = this.tagList, diff = 10000, rc;
@@ -1262,8 +1383,15 @@ RichText.Editor = class {
 
         let rc = "";
         let openTag = "", openFormattingTag = "";
-        for( let i = 0; i < this.elements.length(); ++i ) {
-            let el = this.elements.at( i );
+
+        let elements = this.elements.elements;
+        if ( selection ) {
+            if ( this.selection ) elements = this.elements.getRange( this.selectionStart, this.selectionEnd );
+            else return rc;
+        }
+
+        for( let i = 0; i < elements.length; ++i ) {
+            let el = elements[i];
 
             if ( el.font.formatting ) {
 

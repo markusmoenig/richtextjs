@@ -9,9 +9,8 @@ RichTextJS is inspired by (but does not share any code with) [Carota](https://gi
 # Missing features
 We are at the start of the development cycle, so there are quite a few missing features.
 
-* Undo / redo and clipboard support
+* Undo / redo
 * HTML import, Markdown export
-* Arrows keys
 * Multiple columns
 * Bugfixes and more
 
