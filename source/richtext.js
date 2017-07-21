@@ -93,6 +93,7 @@ RichText.ElementManager = class {
     {
         if ( !font ) font = this.defaultFont;
         let el = { text : "", font : Object.assign( {}, font ) };
+        Object.defineProperty( el, "words", { enumerable: false, writable: true } );
         return el;
     }
 
@@ -1435,6 +1436,98 @@ RichText.Editor = class {
             rc += `</${openTag}>`;
 
         return rc;
+    }
+
+    /**
+     * Clears the document.
+     */
+
+    clear()
+    {
+        this.elements.elements = [];
+        this.cursorLocation = undefined;
+        this.selection = false;
+        this._contentChanged( this );
+    }
+
+    /**
+     * Loads a previously saved data string.
+     * @param {*} data
+     */
+
+    load( data )
+    {
+        this.clear();
+
+        let restoreString = ( string ) => {
+            let text = "";
+            for ( let i = 0; i < string.length; ++i )
+            {
+                if ( string[i] === '\\n' )
+                    text += '\n';
+                else text += string[i];
+            }
+            return text;
+        };
+
+        let d = JSON.parse( data );
+        let elements = d.elements;
+
+        for( let i = 0; i < elements.length; ++i )
+        {
+            let el = elements[i];
+            el.text = restoreString( el.text );
+            this.elements.rewordElement( el );
+        }
+
+        this.elements.elements = elements;
+
+        this.cursorLocation = {
+            element : elements.length ? elements[0] : undefined,
+            offset : 0,
+        };
+
+        this.linalyze();
+        this._contentChanged( this );
+        this._redraw();
+
+        this.getPositionForElementOffset( this.cursorLocation.element, this.cursorLocation.offset, this.cursorLocation );
+    }
+
+    /**
+     * Stores the current document into a string.
+     * @param {boolean} includeCursorLocation - If true includes the cursor location in the saved data (helpful for example for undo / redo).
+     * @returns {string} The data
+     */
+
+    save( includeCursorLocation )
+    {
+        let out = {};
+
+        out.elements = [];
+
+        let saveString = ( string ) => {
+            let text = "";
+            for ( let i = 0; i < string.length; ++i )
+            {
+                if ( string[i] === '\n' )
+                    text += '\\n';
+                else text += string[i];
+            }
+            return text;
+        };
+
+        for( let i = 0; i < this.elements.length(); ++i )
+        {
+            let el = this.elements.at( i );
+
+            let newEl = {};
+            newEl.text = saveString( el.text );
+            newEl.font = Object.assign( {}, el.font );
+            out.elements.push( newEl );
+        }
+
+        return JSON.stringify( out );
     }
 
     /**

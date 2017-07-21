@@ -253,13 +253,12 @@
                 window.addEventListener('cut', function ( event ) {
                     if ( event.clipboardData ) {
                         let out = richText.export( "text", true );
-                        console.log( out );
                         if ( out ) {
                             richText.deleteSelection();
                             event.clipboardData.setData('text/plain', out );
+                            event.preventDefault();
                         }
                     }
-                    event.preventDefault();
                 });
 
                 window.addEventListener('copy', function ( event ) {
@@ -267,9 +266,9 @@
                         let out = richText.export( "text", true );
                         if ( out ) {
                             event.clipboardData.setData('text/plain', out );
+                            event.preventDefault();
                         }
                     }
-                    event.preventDefault();
                 });
 
                 // --- Html Preview
