@@ -1,10 +1,9 @@
-
 {
   "name": "richtextjs",
   "productName": "RichTextJS",
   "author": "Markus Moenig (markus@moenig.tv)",
   "description": "Standalone rich text editor based entirely on the HTML5 canvas",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/markusmoenig/richtextjs"

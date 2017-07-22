@@ -603,16 +603,24 @@ RichText.Editor = class {
             offset : 0,
         };
 
+        this.scrollBarWidth = 0;
+        this.needsScrollBar = false;
+
         this.elements = new RichText.ElementManager( defaultFont );
+
+        this.handleOffset = 0;
+        this.handleDragOffset = 0;
 
         this._redraw = () => this.draw();
         this._fontChanged = () => {};
         this._contentChanged = () => {};
         this._gotoUrl = () => {};
+        this._scrollBarFunc = () => {};
 
+        this.vOffset = 0;
         this.focus = true;
 
-        this.defaultFontHeight = RichText.measureText( "h", defaultFont.text ).height;
+        this.defaultFontHeight = RichText.measureText( "H", defaultFont.text ).height;
     }
 
     /**
@@ -684,6 +692,18 @@ RichText.Editor = class {
      deleteSelection() {
          if ( this.selection )
              this.keyDown( "Backspace" );
+     }
+
+    /**
+     * Set the scrollbar code for the vertical scrollbar.
+     * @param {object} width - Width of the scrollbar
+     * @param {function} func - Called when the scrollbar needs to be drawn
+     */
+
+     setScrollBar( width, func )
+     {
+        this.scrollBarWidth = width;
+        this._scrollBarFunc = func;
      }
 
     /**
@@ -943,6 +963,8 @@ RichText.Editor = class {
 
     linalyze() {
         this.lines = [];
+        this.maxHeight = 0;
+        let width = this.needsScrollBar ? this.width - this.scrollBarWidth : this.width;
 
         function createLine() {
             let line = {
@@ -967,10 +989,11 @@ RichText.Editor = class {
             if ( !line.maxAscent ) line.maxAscent = this.defaultFontHeight;
             if ( !line.maxHeight ) line.maxHeight = this.defaultFontHeight;
 
+            this.maxHeight += line.maxHeight;
             this.lines.push( line );
         };
 
-        let remaining = this.width;
+        let remaining = width;
         let line = createLine();
         let lastEL;
 
@@ -989,7 +1012,7 @@ RichText.Editor = class {
                 pushLine( el, line );
                 line = createLine();
 
-                remaining = this.width - formatting.margin[0] - formatting.margin[2];
+                remaining = width - formatting.margin[0] - formatting.margin[2];
 
                 line.offset = formatting.margin[0];
                 line.symbol = "circle";
@@ -1004,7 +1027,7 @@ RichText.Editor = class {
                 pushLine( el, line );
                 line = createLine();
 
-                remaining = this.width;
+                remaining = width;
             }
 
             // --- Parse the words
@@ -1016,7 +1039,7 @@ RichText.Editor = class {
                 if ( word.lineBreak ) {
                     pushLine( el, line );
                     line = createLine();
-                    remaining = this.width;
+                    remaining = width;
 
                     if ( el.font.formatting ) {
                         line.offset = el.font.formatting.margin[0];
@@ -1029,8 +1052,9 @@ RichText.Editor = class {
                 // --- Word wrap
                 if ( this.wordWrap && word.width > remaining  ) {
                     this.lines.push( line );
+                    this.maxHeight += line.maxHeight;
                     line = createLine();
-                    remaining = this.width;
+                    remaining = width;
                     word.wrapped = true;
                     if ( el.font.formatting ) {
                         line.offset = el.font.formatting.margin[0];
@@ -1074,7 +1098,17 @@ RichText.Editor = class {
         if ( !line.maxAscent ) line.maxAscent = this.defaultFontHeight;
         if ( !line.maxHeight ) line.maxHeight = this.defaultFontHeight;
 
+        this.maxHeight += line.maxHeight;
         this.lines.push( line );
+
+        // --- ScrollBar
+        this.needsScrollBar = this.maxHeight > this.height;
+
+        if ( this.needsScrollBar ) {
+            if ( this.scrollBarWidth )
+                if ( width === this.width )
+                    this.linalyze();
+        }
     }
 
     /**
@@ -1238,6 +1272,26 @@ RichText.Editor = class {
     {
         if ( pos.x < 0 || pos.y < 0 ) return;
 
+        this.scrollAction = undefined;
+        this.handleDragOffset = 0;
+
+        if ( this.needsScrollBar && this.scrollBarWidth ) {
+            // --- Check if pressed inside handle rect
+            if ( pos.x >= this.handleRect.x && pos.x <= this.handleRect.x + this.handleRect.width ){
+                // --- ScrollBar
+                if ( pos.y >= this.handleRect.y && pos.y <= this.handleRect.y + this.handleRect.height ) {
+                    // --- Handle
+                    this.scrollAction = "Vertical Handle Move";
+                    this.scrollStartX = pos.x;
+                    this.scrollStartY = pos.y;
+                    this.handleDragOffset = this.handleRect.y;
+                }
+
+                return;
+            }
+            pos.y += this.vOffset;
+        }
+
         if ( this.hoverElement && this.hoverElement.font.link )
             this._gotoUrl( this.hoverElement.font.link.url );
 
@@ -1269,6 +1323,26 @@ RichText.Editor = class {
     {
         pos.x = Math.max( pos.x, 0 );
         pos.y = Math.max( pos.y, 0 );
+
+        if ( this.scrollAction === "Vertical Handle Move" ) {
+            this.handleOffset = pos.y - this.scrollStartY;
+
+            if ( this.handleOffset + this.handleDragOffset < 0 )
+                this.handleOffset = -this.handleDragOffset;
+
+            if ( this.handleOffset + this.handleDragOffset + this.handleRect.height > this.height )
+                this.handleOffset = this.height - this.handleRect.height - this.handleDragOffset;
+
+            this.vOffset = (this.handleOffset + this.handleDragOffset) * this.maxHeight / this.height;
+
+            this._redraw();
+            return;
+        }
+
+        if ( this.needsScrollBar && this.scrollBarWidth ) {
+            // --- Adjust mouse position for vertical scrollbar offset
+            pos.y += this.vOffset;
+        }
 
         let rc = this.getLocationForMousePos( pos );
 
@@ -1322,6 +1396,22 @@ RichText.Editor = class {
     mouseUp( pos )
     {
         this.mouseIsDown = false;
+        this.scrollAction = undefined;
+        this.handleDragOffset = 0;
+    }
+
+    mouseWheel( step) {
+        if ( this.needsScrollBar && this.scrollBarWidth ) {
+
+            this.handleOffset = Math.max( this.handleOffset - step * 5, 0 );
+
+            if ( this.handleOffset + this.handleRect.height > this.height )
+                this.handleOffset = this.height - this.handleRect.height;
+
+            this.vOffset = this.handleOffset * this.maxHeight / this.height;
+
+            this._redraw();
+        }
     }
 
     /**
@@ -1539,6 +1629,8 @@ RichText.Editor = class {
 
     draw( screenX = 0, screenY = 0 )
     {
+        // ---
+
         let startX = screenX, startY = screenY;
         let ctx = this.ctx;
 
@@ -1546,6 +1638,14 @@ RichText.Editor = class {
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect( startX, startY, this.width, this.height );
+
+        // --- Clip the content
+
+        ctx.save();
+        ctx.rect( startX, startY, this.width, this.height );
+        ctx.clip();
+
+        screenY -= this.vOffset;
 
         ctx.fillStyle = 'black';
         ctx.textBaseline = 'alphabetic';
@@ -1560,14 +1660,16 @@ RichText.Editor = class {
             if ( line.symbol ) {
                 if ( line.symbol === "circle" ) {
                     ctx.beginPath();
-                    let radius = Math.min( line.maxHeight, 4.5 );
+                    let radius = Math.min( line.maxHeight, 3 );
                     let centerX = line.offset - 4 - radius;
                     let centerY = Math.ceil( line.maxHeight / 2 );
 
                     ctx.beginPath();
-                    ctx.arc( screenX - 14 - radius, screenY + centerY, radius, 0, 2 * Math.PI, false);
+                    ctx.arc( screenX - 14 - radius, screenY + centerY, 3, 0, 2 * Math.PI, false);
                     ctx.fillStyle = 'black';
+                    ctx.strokeStyle = 'black';
                     ctx.fill();
+                    ctx.stroke();
                     ctx.closePath();
                 }
             }
@@ -1575,7 +1677,7 @@ RichText.Editor = class {
             if ( !line.words.length && this.selection && ( y >= this.selectionStart.y && y <= this.selectionEnd.y ) ) {
                 // --- If empty line, draw a selection rectangle
                 ctx.fillStyle = '#b2d0ee';
-                ctx.fillRect( startX + x, startY + y, 5, line.maxHeight );
+                ctx.fillRect( startX + x, startY + y - this.vOffset, 5, line.maxHeight );
             }
 
             for ( let w = 0; w < line.words.length; ++w ) {
@@ -1611,7 +1713,7 @@ RichText.Editor = class {
                         if ( y > this.selectionStart.y && y < this.selectionEnd.y )
                         {
                             // --- This line is in the middle of the vertical selection somewhere, select everything
-                            ctx.fillRect( startX + x, startY + y, textToDrawWidth, line.maxHeight );
+                            ctx.fillRect( startX + x, startY + y - this.vOffset, textToDrawWidth, line.maxHeight );
                         } else
                         if ( y === this.selectionStart.y && y === this.selectionEnd.y )
                         {
@@ -1628,7 +1730,7 @@ RichText.Editor = class {
                                 rw -= diff;
                             }
 
-                            if ( rw > 1 ) ctx.fillRect( rx, startY + y, rw, line.maxHeight );
+                            if ( rw > 1 ) ctx.fillRect( rx, startY + y - this.vOffset, rw, line.maxHeight );
                         } else
                         if ( y === this.selectionStart.y )
                         {
@@ -1640,7 +1742,7 @@ RichText.Editor = class {
                                 rx -= diff; rw += diff;
                             }
 
-                            if ( rw > 1 ) ctx.fillRect( rx, startY + y, rw, line.maxHeight );
+                            if ( rw > 1 ) ctx.fillRect( rx, startY + y - this.vOffset, rw, line.maxHeight );
                         } else
                         if ( y === this.selectionEnd.y )
                         {
@@ -1652,7 +1754,7 @@ RichText.Editor = class {
                                 rw -= diff;
                             }
 
-                            if ( rw > 1 ) ctx.fillRect( rx, startY + y, rw, line.maxHeight );
+                            if ( rw > 1 ) ctx.fillRect( rx, startY + y - this.vOffset, rw, line.maxHeight );
                         }
                     }
                 }
@@ -1696,10 +1798,24 @@ RichText.Editor = class {
                     height = this.cursorLocation.line.maxAscent;// - this.cursorLocation.line.maxDescent;
 
                 ctx.fillStyle = 'black';
-                ctx.fillRect( startX + this.cursorLocation.x, startY + this.cursorLocation.y, 1, height );
+                ctx.fillRect( startX + this.cursorLocation.x, startY + this.cursorLocation.y - this.vOffset, 1, height );
             }
 
             this.updateBlinkState();
+        }
+
+        ctx.restore();
+
+        // --- Scrollbar
+        if ( this.needsScrollBar && this.scrollBarWidth ) {
+            // --- Draw Scrollbar
+
+            let x = startX + this.width - this.scrollBarWidth;
+            let y = Math.max( startY + this.handleOffset + this.handleDragOffset, startY );
+            let height = Math.min( this.height / this.maxHeight * this.height, this.height );
+
+            this.handleRect = { x : x, y : y, width : this.scrollBarWidth, height : height };
+            this._scrollBarFunc( ctx, this.handleRect );
         }
     }
 };

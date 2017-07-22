@@ -6,10 +6,19 @@ I could not have imagined developing a rich text editor some time ago ... but I 
 
 RichTextJS is inspired by (but does not share any code with) [Carota](https://github.com/danielearwicker/carota).
 
+# Features
+
+* Customizable fonts (and font attributes)
+* Ordered and unordered lists
+* Links (activated via callbacks)
+* Vertical scrollbar with customizable drawing
+* HTML / text export
+
 # Missing features
 We are at the start of the development cycle, so there are quite a few missing features.
 
 * HTML import, Markdown export
+* Text align
 * Multiple columns
 * Bugfixes and more
 
@@ -144,6 +153,19 @@ richText.contentChanged( ( editor ) => textArea.value = editor.export( "html" ) 
 ```
 
 The gotoUrl() callback is called when a link is clicked inside the editor and contentChanged() whenever the content of the editor changes. If you need to implement undo / redo in your application, you can do that using contentChanged() and the load() / save() functions.
+
+## Scrollbar
+
+By default RichTextJS does not draw a vertical scrollbar, for that you have to set the width and the function to draw the scrollbar.
+
+```javascript
+richText.setScrollBar( 12, ( ctx, rect ) => {
+    ctx.fillStyle = 'darkGray';
+    ctx.fillRect( rect.x, rect.y, rect.width, rect.height );
+} );
+```
+
+The callback is passed the context and the rectangle of the scrollbar handle to draw. In this example we just draw a solid dark gray scrollbar. You can adjust the scrollbar drawing code to fit the style of your application.
 
 ## Import / Export
 

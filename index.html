@@ -166,11 +166,15 @@
                     if ( element.checked ) window.open( url )
                 } );
 
+                richText.setScrollBar( 12, ( ctx, rect ) => {
+                    ctx.fillStyle = 'darkGray';
+                    ctx.fillRect( rect.x, rect.y, rect.width, rect.height );
+                } );
+
                 canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
                 richText.layout( canvas.clientWidth, canvas.clientHeight );
 
                 // --- Focus notification
-
                 let canvasElement = document.querySelector( '#editorCanvas' );
                 canvasElement.onfocus = () => richText.setFocus( true );
                 canvasElement.onblur = () => richText.setFocus( false );
@@ -242,6 +246,24 @@
                     }
                 };
 
+                window.addEventListener('DOMMouseScroll', function ( event ) {
+                    // --- FF mousewheel
+                    document.onmousewheel( event );
+                });
+
+                let lastWheelStep;
+                document.onmousewheel = ( event ) => {
+                    // --- For scrolling only
+                    event = window.event || event;
+                    let step = Math.max(-1, Math.min(1, (event.wheelDelta || -event.detail)));
+                    if ( step === 0 && lastWheelStep ) step=lastWheelStep;
+
+                    richText.mouseWheel( step );
+                    event.preventDefault();
+
+                    lastWheelStep=step;
+                };
+
                 // --- Resize
                 window.addEventListener( 'resize', () => {
                     let canvas = document.getElementById( 'editorCanvas' );
@@ -266,6 +288,18 @@
                         let out = richText.export( "text", true );
                         if ( out ) {
                             event.clipboardData.setData('text/plain', out );
+                            event.preventDefault();
+                        }
+                    }
+                });
+
+                window.addEventListener('paste', function ( event ) {
+                    if ( event.clipboardData ) {
+                        let text = event.clipboardData.getData( 'text/plain' );
+                        if ( text ) {
+                            richText.deleteSelection();
+                            richText.textInput( text );
+                            update();
                             event.preventDefault();
                         }
                     }
@@ -428,12 +462,22 @@
                 richText.textInput( "RichTextJS is inspired by (but does not share any code with) Carota.\n\n" );
 
                 richText.setFont( createFont( 20 ) );
+                richText.textInput( "Features\n" );
+                richText.setFont( createFont( 12, [], { tag : "ul", margin : [80, 10, 20, 10] } ) );
+                richText.textInput( "Customizable fonts (and font attributes)\n" );
+                richText.textInput( "Ordered and unordered lists\n" );
+                richText.textInput( "Links (activated via callbacks)\n" );
+                richText.textInput( "Vertical scrollbar with customizable drawing\n" );
+                richText.textInput( "HTML / text export" );
+
+                richText.setFont( createFont( 20 ) );
                 richText.textInput( "Missing Features\n" );
                 richText.setFont( createFont( 12 ) );
                 richText.textInput( "\n We are at the start of the development cycle, so there are quite a few things missing:\n" );
 
                 richText.setFont( createFont( 12, [], { tag : "ul", margin : [80, 10, 20, 10] } ) );
                 richText.textInput( "HTML import, Markdown export\n");
+                richText.textInput( "Text align\n" );
                 richText.textInput( "Multiple columns\n" );
                 richText.textInput( "Bugfixes and more" );
 
