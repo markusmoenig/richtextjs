@@ -1,3 +1,26 @@
+/*
+ * Copyright (c) 2017 Markus Moenig <markus@moenig.tv>
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy,
+ * modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ * LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+ * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 RichText = {};
 
 /**
@@ -485,6 +508,9 @@ RichText.ElementManager = class {
                 set( font, elFont, "text" );
                 set( font, elFont, "size" );
                 set( font, elFont, "style" );
+                if ( elFont.link ) {
+                    font.link = Object.assign( {}, elFont.link );
+                }
                 setAttribute( font, elFont, "bold" );
                 setAttribute( font, elFont, "italic" );
             }
@@ -561,7 +587,7 @@ RichText.ElementManager = class {
                 }
                 prefix += c;
             } else
-            if ( c === '\n' )
+            if ( c == '\n' )
             {
                 if ( prefix.length || word.length )
                     pushWord( prefix, word, i );
@@ -584,7 +610,7 @@ RichText.ElementManager = class {
 
 RichText.Editor = class {
 
-    constructor( { canvas, defaultFont, tagList } = {} ) {
+    constructor( { canvas, defaultFont, tagList, selectionStyle, linkStyle, readOnly = false } = {} ) {
 
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
@@ -592,6 +618,9 @@ RichText.Editor = class {
 
         this.defaultFont = defaultFont;
         this.tagList = tagList;
+        this.selectionStyle = selectionStyle ? selectionStyle : '#b2d0ee';
+        this.linkStyle = linkStyle ? linkStyle : 'blue';
+        this.readOnly = readOnly;
 
         this.wordWrap = true;
 
@@ -619,6 +648,7 @@ RichText.Editor = class {
 
         this.vOffset = 0;
         this.focus = true;
+        this.clearBackground = true;
 
         this.defaultFontHeight = RichText.measureText( "H", defaultFont.text ).height;
     }
@@ -707,6 +737,22 @@ RichText.Editor = class {
      }
 
     /**
+     * Sets the cursor at the specified text offset.
+     * @param {*} offset
+     */
+
+    setCursor( offset )
+    {
+        if ( this.elements.length() ) {
+            let loc = {};
+            loc.offset = offset;
+
+            this.elements.current = loc.element;
+            this.cursorLocation = loc;
+        }
+    }
+
+    /**
      * Sets the given font.
      * @param {object} font - The font to apply to the editor.
      */
@@ -721,7 +767,7 @@ RichText.Editor = class {
             this.getPositionForElementOffset( this.selectionEnd.element, this.selectionEnd.offset, this.selectionEnd );
             this.getPositionForElementOffset( this.cursorLocation.element, this.cursorLocation.offset, this.cursorLocation );
             this.resetBlinkState();
-            this._contentChanged( this );
+            this._contentChanged( this, "Edit" );
         } else {
             if ( this.elements.current && !this.elements.current.words ) {
                 this.elements.current.font = Object.assign( {}, font );
@@ -755,6 +801,7 @@ RichText.Editor = class {
 
     updateBlinkState()
     {
+        if ( this.readOnly ) return;
         this.redrawAt = Date.now();
         setTimeout( function() {
             let time = Date.now();
@@ -1043,7 +1090,7 @@ RichText.Editor = class {
 
                     if ( el.font.formatting ) {
                         line.offset = el.font.formatting.margin[0];
-                        remaining -= line.offset - el.font.formatting.margin[2];
+                        remaining -= line.offset + el.font.formatting.margin[2];
                         line.symbol = "circle";
                     }
                     continue;
@@ -1058,7 +1105,7 @@ RichText.Editor = class {
                     word.wrapped = true;
                     if ( el.font.formatting ) {
                         line.offset = el.font.formatting.margin[0];
-                        remaining -= line.offset - el.font.formatting.margin[2];
+                        remaining -= line.offset + el.font.formatting.margin[2];
                     }
                 }
 
@@ -1116,8 +1163,10 @@ RichText.Editor = class {
      * @param {string} text
      */
 
-    textInput( text )
+    textInput( text, sendNotification = true )
     {
+        if ( this.readOnly ) return;
+
         if ( this.selection ) {
             this.cursorLocation = this.elements.deleteRange( this.selectionStart, this.selectionEnd );
             this.linalyze();
@@ -1140,10 +1189,7 @@ RichText.Editor = class {
         this.cursorLocation.element = el;
         this.getPositionForElementOffset( el, this.cursorLocation.offset, this.cursorLocation );
 
-        // this.ctx.font = el.font.text;
-        // this.cursorLocation.x += this.measureText( text ).width;
-
-        this._contentChanged( this );
+        if ( sendNotification ) this._contentChanged( this, "Edit" );
     }
 
     /**
@@ -1153,6 +1199,7 @@ RichText.Editor = class {
 
     keyDown( key )
     {
+        if ( this.readOnly ) return;
         if ( this.selection ) {
             this.cursorLocation = this.elements.deleteRange( this.selectionStart, this.selectionEnd );
             this.linalyze();
@@ -1161,7 +1208,7 @@ RichText.Editor = class {
             if ( key === "Backspace" ) {
                 this.getPositionForElementOffset( this.cursorLocation.element, this.cursorLocation.offset, this.cursorLocation );
                 this.resetBlinkState();
-                this._contentChanged( this );
+                this._contentChanged( this, "Edit" );
                 this._redraw();
                 return;
             }
@@ -1182,7 +1229,7 @@ RichText.Editor = class {
             this.cursorLocation.offset += 1;
             this.cursorLocation.element = el;
             this.getPositionForElementOffset( el, this.cursorLocation.offset, this.cursorLocation );
-            this._contentChanged( this );
+            this._contentChanged( this, "Edit" );
         } else
         if ( key === "Backspace" )
         {
@@ -1214,7 +1261,7 @@ RichText.Editor = class {
                 this.cursorLocation.element = el;
                 this.getPositionForElementOffset( el, this.cursorLocation.offset, this.cursorLocation );
 
-                this._contentChanged( this );
+                this._contentChanged( this, "Edit" );
             }
 
             checkPrevious();
@@ -1287,6 +1334,7 @@ RichText.Editor = class {
                     this.handleDragOffset = this.handleRect.y;
                 }
 
+                this.mouseMove( pos );
                 return;
             }
             pos.y += this.vOffset;
@@ -1397,19 +1445,20 @@ RichText.Editor = class {
     {
         this.mouseIsDown = false;
         this.scrollAction = undefined;
-        this.handleDragOffset = 0;
     }
 
     mouseWheel( step) {
         if ( this.needsScrollBar && this.scrollBarWidth ) {
 
-            this.handleOffset = Math.max( this.handleOffset - step * 5, 0 );
+            this.handleOffset = this.handleOffset - step * 5;
 
-            if ( this.handleOffset + this.handleRect.height > this.height )
-                this.handleOffset = this.height - this.handleRect.height;
+            if ( this.handleOffset + this.handleDragOffset < 0 )
+                this.handleOffset = -this.handleDragOffset;
 
-            this.vOffset = this.handleOffset * this.maxHeight / this.height;
+            if ( this.handleOffset + this.handleDragOffset + this.handleRect.height > this.height )
+                this.handleOffset = this.height - this.handleRect.height - this.handleDragOffset;
 
+            this.vOffset = (this.handleOffset + this.handleDragOffset) * this.maxHeight / this.height;
             this._redraw();
         }
     }
@@ -1532,12 +1581,16 @@ RichText.Editor = class {
      * Clears the document.
      */
 
-    clear()
+    clear( sendNotification )
     {
         this.elements.elements = [];
-        this.cursorLocation = undefined;
+        this.elements.current = undefined;
+        this.cursorLocation = { offset : 0 };
         this.selection = false;
-        this._contentChanged( this );
+        this.vOffset = 0;
+        this.handleDragOffset = 0;
+        this.handleOffset = 0;
+        if ( sendNotification ) this._contentChanged( this, "Clear" );
     }
 
     /**
@@ -1545,17 +1598,18 @@ RichText.Editor = class {
      * @param {*} data
      */
 
-    load( data )
+    load( data, { clear = true, sendNotification = true } = {} )
     {
-        this.clear();
+        if ( clear ) this.clear();
 
         let restoreString = ( string ) => {
             let text = "";
             for ( let i = 0; i < string.length; ++i )
             {
-                if ( string[i] === '\\n' )
+                if ( string[i] === "\\" && i < string.length - 1 && string[i+1] === "n" ) {
                     text += '\n';
-                else text += string[i];
+                    i++;
+                } else text += string[i];
             }
             return text;
         };
@@ -1578,7 +1632,8 @@ RichText.Editor = class {
         };
 
         this.linalyze();
-        this._contentChanged( this );
+        if ( sendNotification )
+            this._contentChanged( this, "Load" );
         this._redraw();
 
         this.getPositionForElementOffset( this.cursorLocation.element, this.cursorLocation.offset, this.cursorLocation );
@@ -1629,15 +1684,17 @@ RichText.Editor = class {
 
     draw( screenX = 0, screenY = 0 )
     {
-        // ---
+        this.screenOffsetX = screenX; this.screenOffsetY = screenY;
 
+        // ---
         let startX = screenX, startY = screenY;
         let ctx = this.ctx;
 
         let x = 0, y = 0;
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect( startX, startY, this.width, this.height );
+        if ( this.clearBackground )
+            ctx.clearRect( startX, startY, this.width, this.height );
 
         // --- Clip the content
 
@@ -1654,6 +1711,10 @@ RichText.Editor = class {
         for( let l = 0; l < this.lines.length; ++l ) {
             let line = this.lines[l];
 
+            // --- Dont draw line if below visible area
+            if ( y - this.vOffset > this.height )
+                continue;
+
             x += line.offset;
             screenX += line.offset;
 
@@ -1666,8 +1727,9 @@ RichText.Editor = class {
 
                     ctx.beginPath();
                     ctx.arc( screenX - 14 - radius, screenY + centerY, 3, 0, 2 * Math.PI, false);
-                    ctx.fillStyle = 'black';
-                    ctx.strokeStyle = 'black';
+                    ctx.fillStyle = this.defaultFont.style;
+                    ctx.strokeStyle = this.defaultFont.style;
+                    ctx.lineWidth = 1;
                     ctx.fill();
                     ctx.stroke();
                     ctx.closePath();
@@ -1676,7 +1738,7 @@ RichText.Editor = class {
 
             if ( !line.words.length && this.selection && ( y >= this.selectionStart.y && y <= this.selectionEnd.y ) ) {
                 // --- If empty line, draw a selection rectangle
-                ctx.fillStyle = '#b2d0ee';
+                ctx.fillStyle = this.selectionStyle;
                 ctx.fillRect( startX + x, startY + y - this.vOffset, 5, line.maxHeight );
             }
 
@@ -1706,7 +1768,7 @@ RichText.Editor = class {
 
                     if ( y >= this.selectionStart.y && y <= this.selectionEnd.y )
                     {
-                        ctx.fillStyle = '#b2d0ee';
+                        ctx.fillStyle = this.selectionStyle;
 
                         let drawWholeText = false;
 
@@ -1726,7 +1788,7 @@ RichText.Editor = class {
                             }
 
                             if ( this.selectionEnd.x <= rx + rw ) {
-                                let diff = rx + rw - this.selectionEnd.x;
+                                let diff = rx + rw - this.selectionEnd.x - startX;
                                 rw -= diff;
                             }
 
@@ -1750,7 +1812,7 @@ RichText.Editor = class {
                             let rx = startX + x, rw = textToDrawWidth;
 
                             if ( this.selectionEnd.x <= rx + rw ) {
-                                let diff = rx + rw - this.selectionEnd.x;
+                                let diff = rx + rw - this.selectionEnd.x - startX;
                                 rw -= diff;
                             }
 
@@ -1764,10 +1826,14 @@ RichText.Editor = class {
                 if ( lWord.element.font.style ) ctx.fillStyle = lWord.element.font.style;
                 else ctx.fillStyle = 'black';
 
+                if ( lWord.element.font.link ) {
+                    ctx.fillStyle = this.linkStyle;
+                }
+
                 if ( lWord.element.font.link && lWord.element === this.hoverElement )
                 {
-                    if ( lWord.element.font.link.hoverStyle )
-                        ctx.fillStyle = lWord.element.font.link.hoverStyle;
+                    // if ( lWord.element.font.link.hoverStyle )
+                    //ctx.fillStyle = lWord.element.font.link.hoverStyle;
 
                     if ( lWord.element.font.link.hoverAttributes ) {
                         let attributes = lWord.element.font.link.hoverAttributes;
@@ -1790,14 +1856,14 @@ RichText.Editor = class {
         }
 
         // --- Cursor / Blink State
-        if ( !this.selection ) {
+        if ( !this.selection && !this.readOnly ) {
             if ( this.blinkState && this.cursorLocation ) {
                 let height = this.defaultFont.size;
 
                 if ( this.cursorLocation.line )
                     height = this.cursorLocation.line.maxAscent;// - this.cursorLocation.line.maxDescent;
 
-                ctx.fillStyle = 'black';
+                ctx.fillStyle = this.defaultFont.style;
                 ctx.fillRect( startX + this.cursorLocation.x, startY + this.cursorLocation.y - this.vOffset, 1, height );
             }
 
@@ -1810,8 +1876,8 @@ RichText.Editor = class {
         if ( this.needsScrollBar && this.scrollBarWidth ) {
             // --- Draw Scrollbar
 
-            let x = startX + this.width - this.scrollBarWidth;
-            let y = Math.max( startY + this.handleOffset + this.handleDragOffset, startY );
+            let x = this.width - this.scrollBarWidth;
+            let y = Math.max( this.handleOffset + this.handleDragOffset, 0 );
             let height = Math.min( this.height / this.maxHeight * this.height, this.height );
 
             this.handleRect = { x : x, y : y, width : this.scrollBarWidth, height : height };
